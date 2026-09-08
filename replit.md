@@ -4,41 +4,41 @@ An agentic career studio that analyzes student resumes, remembers career context
 
 ## Run & Operate
 
-- `pnpm --filter @workspace/api-server run dev` — run the API server (port 5000)
-- `pnpm run typecheck` — full typecheck across all packages
-- `pnpm run build` — typecheck + build all packages
-- `pnpm --filter @workspace/api-spec run codegen` — regenerate API hooks and Zod schemas from the OpenAPI spec
-- `pnpm --filter @workspace/db run push` — push DB schema changes (dev only)
-- Required env: `DATABASE_URL` — Postgres connection string
+- `cd ../.. && python -m python_app.app` from `artifacts/api-server` — run the Python API service on port 8080
+- `python -m compileall -q python_app main.py` — validate Python syntax
+- `pnpm --filter @workspace/career-assistant run typecheck` — validate the retained React presentation layer
+- Required env: `DATABASE_URL` — PostgreSQL connection string
+- Optional env: `OPENAI_API_KEY` — live structured refinement; deterministic agent fallbacks remain available without it
 
 ## Stack
 
-- pnpm workspaces, Node.js 24, TypeScript 5.9
-- API: Express 5
-- DB: PostgreSQL + Drizzle ORM
-- Validation: Zod (`zod/v4`), `drizzle-zod`
-- API codegen: Orval (from OpenAPI spec)
-- Build: esbuild (CJS bundle)
+- Python 3.11, FastAPI, Uvicorn
+- API: Python package in `python_app/`
+- DB: PostgreSQL via psycopg, with a local SQLite fallback only when `DATABASE_URL` is absent
+- Document extraction: pypdf and python-docx
+- Presentation: retained React/Vite UI, calling the Python API contract
 
 ## Where things live
 
-- `artifacts/career-assistant/src/App.tsx` — responsive career studio UI and route-level flows.
+- `main.py` — Python service entry point.
+- `python_app/` — FastAPI application, agent helpers, retrieval, memory store, tools, extraction utilities, and local data directories.
+- `artifacts/career-assistant/src/App.tsx` — responsive career studio UI, student flows, and recruiter workspace.
 - `artifacts/career-assistant/src/index.css` — visual system and responsive theme.
-- `lib/api-spec/openapi.yaml` — source of truth for the career API.
-- `artifacts/api-server/src/routes/career.ts` — persistence, RAG retrieval, agent orchestration, and career tools.
-- `lib/db/src/schema/career.ts` — PostgreSQL tables for profile memory, resources, analyses, and activity.
+- `artifacts/api-server/.replit-artifact/artifact.toml` — managed Python API workflow.
+- `requirements.txt` — Python runtime dependencies.
 
 ## Architecture decisions
 
-- The app uses a single demo student workspace today; profile memory and career artifacts persist in PostgreSQL.
-- RAG is intentionally explainable: resource text is stored as indexed content, simple lexical retrieval selects relevant sources, and the answer returns its sources plus an agent trace.
-- OpenAI is optional at runtime. When `OPENAI_API_KEY` is present, the agent asks `gpt-5.4-mini` for structured refinements; otherwise transparent deterministic fallbacks keep the demonstration functional.
-- The browser accepts text-based resume/resource uploads and sends extracted text through the same API used by paste flows.
+- The app keeps the existing React presentation layer, but all application logic and persistence now run through the Python FastAPI service.
+- RAG is upload-driven: text, JSON, CSV, PDF, and DOCX content is extracted, chunked, scored against the question, and returned with sources plus an agent trace.
+- OpenAI is optional at runtime. When `OPENAI_API_KEY` is present, the Python agent asks `gpt-5.4-mini` for structured refinements; otherwise transparent deterministic fallbacks keep the demonstration functional.
+- PostgreSQL retains the existing career tables and adds candidate, job, and recruitment-interaction memory tables without requiring the old Node/Drizzle API server.
 
 ## Product
 
 - Overview dashboard with resume health, skill coverage, role fit, interview readiness, memory, resources, and activity.
 - Resume lab with sample resume, text-file upload, analysis, missing skills, role recommendations, and improved resume tool output.
+- Recruiting desk with candidate extraction, job analysis, explainable matching, candidate ranking, interview prompts, recruitment FAQ, and PDF/DOCX upload support.
 - Career path with skill gaps and a personalized 30/60/90 day plan.
 - Interview room with role/difficulty-aware questions and coaching.
 - Knowledge base with resource indexing, grounded Q&A, citations, and trace.
@@ -50,9 +50,9 @@ An agentic career studio that analyzes student resumes, remembers career context
 
 ## Gotchas
 
-- Run API codegen after changing `lib/api-spec/openapi.yaml`.
-- Restart the managed API workflow after backend changes so the bundled routes update.
-- Browser upload is intentionally limited to text-readable formats in this first build; PDF/DOCX extraction is a follow-up.
+- Restart the managed API workflow after Python backend changes so the process reloads.
+- The existing React app still uses the workspace’s generated career client for compatibility; the Python API preserves those response shapes.
+- The recruiter upload path sends binary PDF/DOCX files to Python for server-side extraction; the older student resume/resource screens still read browser files as text.
 
 ## Pointers
 
