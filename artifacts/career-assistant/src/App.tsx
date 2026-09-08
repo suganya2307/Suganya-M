@@ -24,6 +24,7 @@ const queryClient = new QueryClient();
 const nav = [
   { href: '/', label: 'Overview', icon: LayoutDashboard },
   { href: '/resume', label: 'Resume lab', icon: FileText },
+  { href: '/recruiting', label: 'Recruiting desk', icon: BriefcaseBusiness },
   { href: '/career', label: 'Career path', icon: Radar },
   { href: '/interview', label: 'Interview room', icon: MessageSquareText },
   { href: '/knowledge', label: 'Knowledge base', icon: BookOpen },
@@ -210,13 +211,20 @@ function ResumePage() {
   const generate = useGenerateImprovedResume();
   const [filename, setFilename] = useState('my-resume.txt');
   const [resumeText, setResumeText] = useState('');
+  const [resumeFile, setResumeFile] = useState<File | null>(null);
   const [fileNotice, setFileNotice] = useState('');
   const [targetRole, setTargetRole] = useState('Product engineer');
   const [analysis, setAnalysis] = useState<any>(null);
   const [improved, setImproved] = useState<any>(null);
+  const [uploadingResume, setUploadingResume] = useState(false);
   const readResumeFile = (file?: File) => {
     if (!file) return;
     setFilename(file.name);
+    setResumeFile(file.name.toLowerCase().endsWith('.pdf') || file.name.toLowerCase().endsWith('.docx') ? file : null);
+    if (file.name.toLowerCase().endsWith('.pdf') || file.name.toLowerCase().endsWith('.docx')) {
+      setFileNotice(`${file.name} will be extracted by the Python document reader when you analyze it.`);
+      return;
+    }
     const reader = new FileReader();
     reader.onload = () => {
       setResumeText(String(reader.result ?? ''));
@@ -225,20 +233,106 @@ function ResumePage() {
     reader.onerror = () => setFileNotice('This file could not be read. Paste the resume text instead.');
     reader.readAsText(file);
   };
-  const analyzeResume = () => analyze.mutate({ data: { filename, resumeText, targetRole } }, { onSuccess: (result) => setAnalysis(result) });
+  const analyzeResume = async () => {
+    if (!resumeFile) {
+      analyze.mutate({ data: { filename, resumeText, targetRole } }, { onSuccess: (result) => setAnalysis(result) });
+      return;
+    }
+    setUploadingResume(true);
+    try {
+      const form = new FormData();
+      form.append('file', resumeFile);
+      form.append('targetRole', targetRole);
+      const response = await fetch('/api/career/resume/analyze', { method: 'POST', body: form });
+      if (!response.ok) throw new Error('Resume upload failed');
+      setAnalysis(await response.json());
+    } catch {
+      setFileNotice('The document could not be analyzed. Try again or paste the resume text.');
+    } finally {
+      setUploadingResume(false);
+    }
+  };
   return <div className="space-y-7">
     <PageIntro eyebrow="Resume lab" title="Make your experience legible." description="Your agent reads for signal, then translates feedback into edits you can actually make." action={<Button onClick={() => setResumeText(sampleResume)} variant="secondary" testId="button-load-sample-resume"><Sparkles size={15} /> Load sample resume</Button>} />
     {!analysis ? <div className="grid gap-6 lg:grid-cols-[1.05fr_.95fr]">
       <Card className="reveal" testId="card-resume-input"><div className="mb-5 flex items-center justify-between"><div><h2 className="font-display text-[18px] font-bold tracking-[-.04em]">Bring your current draft</h2><p className="mt-1 text-[12px] text-muted-foreground">Upload a text resume or paste it for the clearest read.</p></div><Upload size={18} className="text-[hsl(var(--primary))]" /></div>
-        <label className="mb-4 flex cursor-pointer items-center gap-3 rounded-xl border border-dashed border-[hsl(var(--primary)/.35)] bg-[hsl(var(--primary)/.04)] px-3 py-3 text-[11px] font-bold text-[hsl(var(--primary))] transition-colors hover:bg-[hsl(var(--primary)/.08)]"><Upload size={15} /><span className="flex-1">Choose a .txt, .md, .json, or .csv file</span><input type="file" accept=".txt,.md,.json,.csv,text/plain,text/markdown,application/json,text/csv" onChange={(event) => readResumeFile(event.target.files?.[0])} data-testid="input-resume-file" className="sr-only" /></label>
+         <label className="mb-4 flex cursor-pointer items-center gap-3 rounded-xl border border-dashed border-[hsl(var(--primary)/.35)] bg-[hsl(var(--primary)/.04)] px-3 py-3 text-[11px] font-bold text-[hsl(var(--primary))] transition-colors hover:bg-[hsl(var(--primary)/.08)]"><Upload size={15} /><span className="flex-1">Choose a .txt, .md, .json, .csv, .pdf, or .docx file</span><input type="file" accept=".txt,.md,.json,.csv,.pdf,.docx,text/plain,text/markdown,application/json,text/csv,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document" onChange={(event) => readResumeFile(event.target.files?.[0])} data-testid="input-resume-file" className="sr-only" /></label>
         {fileNotice && <p className="mb-4 text-[11px] text-muted-foreground">{fileNotice}</p>}
         <label className="mb-4 block text-[11px] font-bold uppercase tracking-[.1em] text-muted-foreground">File name<input value={filename} onChange={(e) => setFilename(e.target.value)} data-testid="input-resume-filename" className="mt-2 w-full rounded-xl border border-input bg-background px-3 py-2.5 text-[12px] font-normal outline-none transition-colors focus:border-[hsl(var(--primary))]" /></label>
         <label className="block text-[11px] font-bold uppercase tracking-[.1em] text-muted-foreground">Resume text<textarea value={resumeText} onChange={(e) => setResumeText(e.target.value)} data-testid="textarea-resume-text" placeholder="Paste your resume here, or load the sample to explore the flow." className="mt-2 min-h-[360px] w-full resize-y rounded-xl border border-input bg-background p-4 text-[12px] leading-5 outline-none transition-colors placeholder:text-muted-foreground/70 focus:border-[hsl(var(--primary))]" /></label>
-        <div className="mt-4 grid gap-4 sm:grid-cols-[1fr_auto] sm:items-end"><label className="block text-[11px] font-bold uppercase tracking-[.1em] text-muted-foreground">Target role<select value={targetRole} onChange={(e) => setTargetRole(e.target.value)} data-testid="select-resume-role" className="mt-2 w-full rounded-xl border border-input bg-background px-3 py-2.5 text-[12px] font-normal outline-none focus:border-[hsl(var(--primary))]"><option>Product engineer</option><option>Frontend engineer</option><option>Data analyst</option><option>UX researcher</option></select></label><Button onClick={analyzeResume} disabled={!resumeText.trim() || analyze.isPending} testId="button-analyze-resume">{analyze.isPending ? <><Loader2 size={15} className="animate-spin" /> Reading draft</> : <><Radar size={15} /> Analyze resume</>}</Button></div>
+         <div className="mt-4 grid gap-4 sm:grid-cols-[1fr_auto] sm:items-end"><label className="block text-[11px] font-bold uppercase tracking-[.1em] text-muted-foreground">Target role<select value={targetRole} onChange={(e) => setTargetRole(e.target.value)} data-testid="select-resume-role" className="mt-2 w-full rounded-xl border border-input bg-background px-3 py-2.5 text-[12px] font-normal outline-none focus:border-[hsl(var(--primary))]"><option>Product engineer</option><option>Frontend engineer</option><option>Data analyst</option><option>UX researcher</option></select></label><Button onClick={analyzeResume} disabled={(!resumeText.trim() && !resumeFile) || analyze.isPending || uploadingResume} testId="button-analyze-resume">{analyze.isPending || uploadingResume ? <><Loader2 size={15} className="animate-spin" /> Reading draft</> : <><Radar size={15} /> Analyze resume</>}</Button></div>
         {analyze.isError && <p data-testid="status-resume-error" className="mt-3 text-[11px] text-[hsl(var(--destructive))]">The analysis did not complete. Check your draft and try again.</p>}
       </Card>
       <Card className="shell-grid reveal reveal-delay-1 flex min-h-[540px] flex-col justify-between overflow-hidden bg-[hsl(var(--sidebar))] text-[hsl(var(--sidebar-foreground))]" testId="card-resume-agent"><div><div className="mb-6 flex items-center gap-2 text-[hsl(var(--accent))]"><span className="flex h-8 w-8 items-center justify-center rounded-lg bg-white/10"><Sparkles size={16} /></span><span className="font-mono-ui text-[10px] uppercase tracking-[.15em]">Agent trace</span></div><h2 className="max-w-sm font-display text-[31px] font-bold leading-[1.02] tracking-[-.055em]">Feedback with a point of view.</h2><p className="mt-4 max-w-sm text-[13px] leading-6 text-white/55">We look for evidence, not buzzwords. Load your draft and see where the signal is already strong.</p></div><div className="space-y-2 border-t border-white/10 pt-5 text-[11px] text-white/58"><TraceItem text="Parse experience and projects" /><TraceItem text="Compare signal to your target role" /><TraceItem text="Prioritize edits by leverage" /></div></Card>
     </div> : <ResumeResult analysis={analysis} improved={improved} setImproved={setImproved} generate={generate} targetRole={targetRole} onReset={() => { setAnalysis(null); setImproved(null); }} />}
+  </div>;
+}
+
+async function recruitmentRequest(path: string, payload: unknown) {
+  const response = await fetch(`/api/recruitment${path}`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+  if (!response.ok) throw new Error(`Recruitment request failed: ${response.status}`);
+  return response.json();
+}
+
+function RecruitmentPage() {
+  const [candidateText, setCandidateText] = useState(sampleResume);
+  const [candidateFile, setCandidateFile] = useState<File | null>(null);
+  const [jobTitle, setJobTitle] = useState('AI Product Intern');
+  const [jobDescription, setJobDescription] = useState('We are looking for an AI Product Intern with Python, SQL, experimentation, communication, and user research skills. The intern will partner with engineering and design teams to define, test, and launch useful AI features.');
+  const [candidate, setCandidate] = useState<any>(null);
+  const [job, setJob] = useState<any>(null);
+  const [match, setMatch] = useState<any>(null);
+  const [ranking, setRanking] = useState<any>(null);
+  const [faqQuestion, setFaqQuestion] = useState('What should interviewers look for when evaluating an entry-level AI candidate?');
+  const [faq, setFaq] = useState<any>(null);
+  const [busy, setBusy] = useState('');
+  const [error, setError] = useState('');
+
+  const run = async (key: string, action: () => Promise<void>) => {
+    setBusy(key);
+    setError('');
+    try {
+      await action();
+    } catch {
+      setError('That recruitment action did not complete. Check the inputs and try again.');
+    } finally {
+      setBusy('');
+    }
+  };
+
+  const analyzeCandidate = () => run('candidate', async () => {
+    if (candidateFile) {
+      const form = new FormData();
+      form.append('file', candidateFile);
+      const response = await fetch('/api/recruitment/candidates/analyze', { method: 'POST', body: form });
+      if (!response.ok) throw new Error('Candidate upload failed');
+      setCandidate(await response.json());
+      return;
+    }
+    setCandidate(await recruitmentRequest('/candidates/analyze', { filename: 'candidate-resume.txt', resumeText: candidateText }));
+  });
+  const analyzeJob = () => run('job', async () => setJob(await recruitmentRequest('/jobs/analyze', { title: jobTitle, description: jobDescription })));
+  const runMatch = () => run('match', async () => setMatch(await recruitmentRequest('/match', { candidate: candidate?.candidateProfile || { skills: candidate?.extractedSkills || [] }, job: job || { title: jobTitle, description: jobDescription, requiredSkills: [] } })));
+  const runRanking = () => run('ranking', async () => {
+    const primary = candidate?.candidateProfile || { name: 'Maya Chen', skills: ['Python', 'SQL', 'React', 'Git'] };
+    const second = { name: 'Jordan Lee', skills: ['Python', 'Docker', 'AWS', 'Machine Learning'], summary: 'Built and evaluated an applied ML service.' };
+    setRanking(await recruitmentRequest('/rank', { title: job?.title || jobTitle, jobDescription: job?.description || jobDescription, candidates: [primary, second] }));
+  });
+  const askFaq = () => run('faq', async () => setFaq(await recruitmentRequest('/faq', { question: faqQuestion })));
+
+  return <div className="space-y-7">
+    <PageIntro eyebrow="Recruiting desk" title="Make hiring decisions explainable." description="Analyze candidates and roles, compare evidence, and leave a transparent trail instead of relying on gut feel." action={<span className="flex items-center gap-2 rounded-full border border-[hsl(var(--primary)/.2)] bg-[hsl(var(--primary)/.06)] px-3 py-2 font-mono-ui text-[10px] uppercase tracking-[.12em] text-[hsl(var(--primary))]"><Sparkles size={13} /> Agent + RAG + memory</span>} />
+    {error && <div data-testid="status-recruitment-error" className="rounded-xl border border-[hsl(var(--destructive)/.25)] bg-[hsl(var(--destructive)/.06)] p-3 text-[11px] text-[hsl(var(--destructive))]">{error}</div>}
+    <div className="grid gap-6 lg:grid-cols-2">
+      <Card className="reveal" testId="card-recruiting-candidate"><div className="mb-4 flex items-start justify-between"><div><p className="font-mono-ui text-[10px] uppercase tracking-[.14em] text-[hsl(var(--primary))]">Candidate intelligence</p><h2 className="mt-1 font-display text-xl font-bold tracking-[-.04em]">Read the evidence</h2><p className="mt-1 text-[11px] text-muted-foreground">Extract skills, experience signals, and education from a resume.</p></div><FileText size={18} className="text-[hsl(var(--primary))]" /></div><label className="mb-3 flex cursor-pointer items-center gap-3 rounded-xl border border-dashed border-[hsl(var(--primary)/.35)] bg-[hsl(var(--primary)/.04)] px-3 py-3 text-[11px] font-bold text-[hsl(var(--primary))]"><Upload size={14} /><span className="flex-1">{candidateFile?.name || 'Upload TXT, PDF, or DOCX'}</span><input type="file" accept=".txt,.md,.json,.csv,.pdf,.docx" className="sr-only" onChange={(event) => setCandidateFile(event.target.files?.[0] || null)} data-testid="input-recruiting-candidate-file" /></label><textarea value={candidateText} onChange={(event) => setCandidateText(event.target.value)} className="min-h-[190px] w-full resize-y rounded-xl border border-input bg-background p-3 text-[12px] leading-5 outline-none focus:border-[hsl(var(--primary))]" data-testid="textarea-recruiting-candidate" /><Button onClick={analyzeCandidate} disabled={busy === 'candidate' || (!candidateText.trim() && !candidateFile)} testId="button-analyze-candidate">{busy === 'candidate' ? <><Loader2 size={14} className="animate-spin" /> Reading candidate</> : <><Radar size={14} /> Analyze candidate</>}</Button>{candidate && <div className="mt-5 border-t border-border pt-5" data-testid="card-candidate-output"><div className="flex items-center justify-between"><h3 className="text-[13px] font-bold">{candidate.candidateProfile?.name || candidate.filename}</h3><span className="font-mono-ui text-[10px] text-[hsl(var(--primary))]">{candidate.extractedSkills?.length || 0} skills extracted</span></div><div className="mt-3 flex flex-wrap gap-1.5">{candidate.extractedSkills?.map((skill: string) => <span key={skill} className="rounded-md bg-muted px-2 py-1 text-[10px] font-semibold">{skill}</span>)}</div><div className="mt-4 space-y-1.5">{candidate.agentTrace?.map((item: string, i: number) => <p key={i} className="text-[10px] text-muted-foreground"><Check size={11} className="mr-1 inline text-[hsl(var(--primary))]" />{item}</p>)}</div></div>}</Card>
+      <Card className="reveal reveal-delay-1" testId="card-recruiting-job"><div className="mb-4 flex items-start justify-between"><div><p className="font-mono-ui text-[10px] uppercase tracking-[.14em] text-[hsl(var(--primary))]">Role intelligence</p><h2 className="mt-1 font-display text-xl font-bold tracking-[-.04em]">Clarify the role</h2><p className="mt-1 text-[11px] text-muted-foreground">Turn a job description into requirements your team can discuss.</p></div><BriefcaseBusiness size={18} className="text-[hsl(var(--primary))]" /></div><label className="mb-3 block text-[11px] font-bold uppercase tracking-[.1em] text-muted-foreground">Role title<input value={jobTitle} onChange={(event) => setJobTitle(event.target.value)} className="mt-2 w-full rounded-xl border border-input bg-background px-3 py-2.5 text-[12px] font-normal outline-none focus:border-[hsl(var(--primary))]" data-testid="input-recruiting-job-title" /></label><label className="block text-[11px] font-bold uppercase tracking-[.1em] text-muted-foreground">Job description<textarea value={jobDescription} onChange={(event) => setJobDescription(event.target.value)} className="mt-2 min-h-[190px] w-full resize-y rounded-xl border border-input bg-background p-3 text-[12px] leading-5 outline-none focus:border-[hsl(var(--primary))]" data-testid="textarea-recruiting-job" /></label><Button onClick={analyzeJob} disabled={busy === 'job' || !jobDescription.trim()} testId="button-analyze-job">{busy === 'job' ? <><Loader2 size={14} className="animate-spin" /> Parsing role</> : <><Search size={14} /> Analyze role</>}</Button>{job && <div className="mt-5 border-t border-border pt-5" data-testid="card-job-output"><div className="flex items-center justify-between"><h3 className="text-[13px] font-bold">{job.title}</h3><span className="rounded-full bg-[hsl(var(--accent)/.22)] px-2 py-1 font-mono-ui text-[9px] uppercase">{job.seniority}</span></div><div className="mt-3 flex flex-wrap gap-1.5">{job.requiredSkills?.map((skill: string) => <span key={skill} className="rounded-md bg-[hsl(var(--primary)/.08)] px-2 py-1 text-[10px] font-semibold text-[hsl(var(--primary))]">{skill}</span>)}</div><p className="mt-3 text-[11px] leading-5 text-muted-foreground">{job.responsibilities?.slice(0, 3).join(' · ')}</p></div>}</Card>
+    </div>
+    <Card className="reveal reveal-delay-2" testId="card-recruiting-match"><div className="flex flex-col justify-between gap-5 md:flex-row md:items-end"><div><p className="font-mono-ui text-[10px] uppercase tracking-[.14em] text-[hsl(var(--primary))]">Decision support</p><h2 className="mt-1 font-display text-2xl font-bold tracking-[-.05em]">Compare fit without hiding the why.</h2><p className="mt-2 max-w-xl text-[12px] leading-5 text-muted-foreground">Run a candidate-to-role match or rank a small slate. Every score exposes matched evidence and gaps.</p></div><div className="flex flex-wrap gap-2"><Button variant="secondary" onClick={runMatch} disabled={busy === 'match' || !candidate} testId="button-match-candidate">{busy === 'match' ? <Loader2 size={14} className="animate-spin" /> : <Check size={14} />} Match candidate</Button><Button onClick={runRanking} disabled={busy === 'ranking'} testId="button-rank-candidates">{busy === 'ranking' ? <Loader2 size={14} className="animate-spin" /> : <TrendingUp size={14} />} Rank sample slate</Button></div></div>{match && <div className="mt-6 grid gap-4 border-t border-border pt-6 md:grid-cols-[.35fr_1fr]"><div className="rounded-xl bg-[hsl(var(--sidebar))] p-5 text-white"><p className="font-mono-ui text-[10px] uppercase tracking-[.12em] text-white/45">Match score</p><p className="mt-3 font-display text-5xl font-bold tracking-[-.08em] text-[hsl(var(--accent))]">{match.matchScore}%</p><p className="mt-3 text-[11px] leading-5 text-white/55">{match.rationale}</p></div><div className="grid gap-3 sm:grid-cols-2"><div className="rounded-xl bg-[hsl(var(--primary)/.07)] p-4"><p className="text-[10px] font-bold uppercase tracking-[.12em] text-[hsl(var(--primary))]">Matched skills</p><p className="mt-3 text-[12px] leading-6">{match.matchedSkills?.join(' · ') || 'No direct overlap yet'}</p></div><div className="rounded-xl bg-muted/55 p-4"><p className="text-[10px] font-bold uppercase tracking-[.12em] text-muted-foreground">Gaps to probe</p><p className="mt-3 text-[12px] leading-6">{match.missingSkills?.join(' · ') || 'No gaps detected'}</p></div></div></div>}{ranking && <div className="mt-6 border-t border-border pt-6"><div className="mb-3 flex items-center justify-between"><h3 className="font-display text-lg font-bold">Ranked candidates</h3><span className="font-mono-ui text-[9px] uppercase tracking-[.12em] text-muted-foreground">Explainable ordering</span></div><div className="grid gap-3 md:grid-cols-2">{ranking.rankedCandidates?.map((item: any, i: number) => <div key={i} className="rounded-xl border border-border p-4"><div className="flex justify-between gap-3"><h4 className="text-[12px] font-bold">{item.candidate?.name || `Candidate ${i + 1}`}</h4><span className="font-mono-ui text-[10px] text-[hsl(var(--primary))]">{item.score}%</span></div><p className="mt-2 text-[11px] text-muted-foreground">{item.rationale}</p><p className="mt-3 text-[10px] font-semibold text-[hsl(var(--primary))]">Strengths: {item.strengths?.join(', ') || '—'}</p><p className="mt-1 text-[10px] text-muted-foreground">Gaps: {item.gaps?.join(', ') || '—'}</p></div>)}</div></div>}</Card>
+    <Card className="reveal reveal-delay-3" testId="card-recruiting-faq"><div className="mb-4 flex items-start justify-between"><div><p className="font-mono-ui text-[10px] uppercase tracking-[.14em] text-[hsl(var(--primary))]">Recruitment knowledge</p><h2 className="mt-1 font-display text-xl font-bold tracking-[-.04em]">Ask the hiring FAQ agent.</h2><p className="mt-1 text-[11px] text-muted-foreground">Answers are grounded in the recruitment documents you index in Knowledge base.</p></div><BookOpen size={18} className="text-[hsl(var(--primary))]" /></div><div className="flex gap-2"><input value={faqQuestion} onChange={(event) => setFaqQuestion(event.target.value)} className="min-w-0 flex-1 rounded-xl border border-input bg-background px-3 py-2.5 text-[12px] outline-none focus:border-[hsl(var(--primary))]" data-testid="input-recruiting-faq" /><Button onClick={askFaq} disabled={busy === 'faq' || !faqQuestion.trim()} testId="button-ask-recruiting-faq">{busy === 'faq' ? <Loader2 size={14} className="animate-spin" /> : <Send size={14} />}</Button></div>{faq && <div className="mt-5 border-t border-border pt-5" data-testid="card-recruiting-faq-answer"><p className="text-[13px] leading-6">{faq.answer}</p><div className="mt-3 flex flex-wrap gap-2">{faq.sources?.map((source: string) => <span key={source} className="rounded-md bg-muted px-2 py-1 text-[10px] font-semibold">{source}</span>)}</div><div className="mt-4 space-y-1">{faq.agentTrace?.map((item: string, i: number) => <p key={i} className="text-[10px] text-muted-foreground"><Check size={11} className="mr-1 inline text-[hsl(var(--primary))]" />{item}</p>)}</div></div>}</Card>
   </div>;
 }
 
@@ -302,12 +396,19 @@ function KnowledgePage() {
   const [filename, setFilename] = useState('');
   const [kind, setKind] = useState('Job description');
   const [content, setContent] = useState('');
+  const [resourceFile, setResourceFile] = useState<File | null>(null);
   const [fileNotice, setFileNotice] = useState('');
+  const [uploadingResource, setUploadingResource] = useState(false);
   const [question, setQuestion] = useState('');
   const [answer, setAnswer] = useState<any>(null);
   const readResourceFile = (file?: File) => {
     if (!file) return;
     setFilename(file.name);
+    setResourceFile(file);
+    if (file.name.toLowerCase().endsWith('.pdf') || file.name.toLowerCase().endsWith('.docx')) {
+      setFileNotice(`${file.name} will be extracted by the Python document reader when you index it.`);
+      return;
+    }
     const reader = new FileReader();
     reader.onload = () => {
       setContent(String(reader.result ?? ''));
@@ -316,9 +417,30 @@ function KnowledgePage() {
     reader.onerror = () => setFileNotice('This file could not be read. Paste the resource text instead.');
     reader.readAsText(file);
   };
-  const addResource = () => add.mutate({ data: { filename: filename || 'career-resource.txt', kind, content } }, { onSuccess: () => { setFilename(''); setContent(''); queryClient.invalidateQueries({ queryKey: getListCareerDocumentsQueryKey() }); } });
+  const addResource = async () => {
+    if (!resourceFile) {
+      add.mutate({ data: { filename: filename || 'career-resource.txt', kind, content } }, { onSuccess: () => { setFilename(''); setContent(''); queryClient.invalidateQueries({ queryKey: getListCareerDocumentsQueryKey() }); } });
+      return;
+    }
+    setUploadingResource(true);
+    try {
+      const form = new FormData();
+      form.append('file', resourceFile);
+      const response = await fetch('/api/career/documents', { method: 'POST', body: form });
+      if (!response.ok) throw new Error('Resource upload failed');
+      setFileNotice(`${resourceFile.name} indexed and ready for grounded questions.`);
+      setFilename('');
+      setContent('');
+      setResourceFile(null);
+      queryClient.invalidateQueries({ queryKey: getListCareerDocumentsQueryKey() });
+    } catch {
+      setFileNotice('This document could not be indexed. Try again or paste its text.');
+    } finally {
+      setUploadingResource(false);
+    }
+  };
   return <div className="space-y-7"><PageIntro eyebrow="Knowledge base" title="Give your questions somewhere to land." description="Index the resources you trust. Every answer here is grounded in those sources, with the trail left visible." />
-     <div className="grid gap-6 lg:grid-cols-[.8fr_1.2fr]"><Card className="reveal" testId="card-add-resource"><div className="mb-5 flex items-start justify-between"><div><h2 className="font-display text-lg font-bold tracking-[-.04em]">Add a resource</h2><p className="mt-1 text-[11px] text-muted-foreground">Job descriptions, syllabi, guides, notes.</p></div><Plus size={18} className="text-[hsl(var(--primary))]" /></div><label className="mb-4 flex cursor-pointer items-center gap-3 rounded-xl border border-dashed border-[hsl(var(--primary)/.35)] bg-[hsl(var(--primary)/.04)] px-3 py-3 text-[11px] font-bold text-[hsl(var(--primary))] transition-colors hover:bg-[hsl(var(--primary)/.08)]"><Upload size={15} /><span className="flex-1">Upload a text resource</span><input type="file" accept=".txt,.md,.json,.csv,text/plain,text/markdown,application/json,text/csv" onChange={(event) => readResourceFile(event.target.files?.[0])} data-testid="input-resource-file" className="sr-only" /></label>{fileNotice && <p className="mb-4 text-[11px] text-muted-foreground">{fileNotice}</p>}<label className="mb-3 block text-[11px] font-bold uppercase tracking-[.1em] text-muted-foreground">Resource name<input value={filename} onChange={(e) => setFilename(e.target.value)} data-testid="input-resource-name" placeholder="e.g. Stripe product internship" className="mt-2 w-full rounded-xl border border-input bg-background px-3 py-2.5 text-[12px] font-normal outline-none focus:border-[hsl(var(--primary))]" /></label><label className="mb-3 block text-[11px] font-bold uppercase tracking-[.1em] text-muted-foreground">Type<select value={kind} onChange={(e) => setKind(e.target.value)} data-testid="select-resource-kind" className="mt-2 w-full rounded-xl border border-input bg-background px-3 py-2.5 text-[12px] font-normal outline-none focus:border-[hsl(var(--primary))]"><option>Job description</option><option>Career center guide</option><option>Course notes</option><option>Personal research</option></select></label><label className="block text-[11px] font-bold uppercase tracking-[.1em] text-muted-foreground">Content<textarea value={content} onChange={(e) => setContent(e.target.value)} data-testid="textarea-resource-content" placeholder="Paste the text you want the agent to remember." className="mt-2 min-h-[150px] w-full resize-y rounded-xl border border-input bg-background p-3 text-[12px] leading-5 outline-none focus:border-[hsl(var(--primary))]" /></label><Button onClick={addResource} disabled={!content.trim() || add.isPending} testId="button-add-resource" >{add.isPending ? <><Loader2 size={14} className="animate-spin" /> Indexing</> : <><Upload size={14} /> Index resource</>}</Button>{add.isSuccess && <p data-testid="status-resource-added" className="mt-3 flex items-center gap-1.5 text-[11px] text-[hsl(var(--primary))]"><Check size={13} /> Resource indexed and ready.</p>}</Card>
+     <div className="grid gap-6 lg:grid-cols-[.8fr_1.2fr]"><Card className="reveal" testId="card-add-resource"><div className="mb-5 flex items-start justify-between"><div><h2 className="font-display text-lg font-bold tracking-[-.04em]">Add a resource</h2><p className="mt-1 text-[11px] text-muted-foreground">Job descriptions, syllabi, guides, notes.</p></div><Plus size={18} className="text-[hsl(var(--primary))]" /></div><label className="mb-4 flex cursor-pointer items-center gap-3 rounded-xl border border-dashed border-[hsl(var(--primary)/.35)] bg-[hsl(var(--primary)/.04)] px-3 py-3 text-[11px] font-bold text-[hsl(var(--primary))] transition-colors hover:bg-[hsl(var(--primary)/.08)]"><Upload size={15} /><span className="flex-1">Upload a text, PDF, or DOCX resource</span><input type="file" accept=".txt,.md,.json,.csv,.pdf,.docx,text/plain,text/markdown,application/json,text/csv,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document" onChange={(event) => readResourceFile(event.target.files?.[0])} data-testid="input-resource-file" className="sr-only" /></label>{fileNotice && <p className="mb-4 text-[11px] text-muted-foreground">{fileNotice}</p>}<label className="mb-3 block text-[11px] font-bold uppercase tracking-[.1em] text-muted-foreground">Resource name<input value={filename} onChange={(e) => setFilename(e.target.value)} data-testid="input-resource-name" placeholder="e.g. Stripe product internship" className="mt-2 w-full rounded-xl border border-input bg-background px-3 py-2.5 text-[12px] font-normal outline-none focus:border-[hsl(var(--primary))]" /></label><label className="mb-3 block text-[11px] font-bold uppercase tracking-[.1em] text-muted-foreground">Type<select value={kind} onChange={(e) => setKind(e.target.value)} data-testid="select-resource-kind" className="mt-2 w-full rounded-xl border border-input bg-background px-3 py-2.5 text-[12px] font-normal outline-none focus:border-[hsl(var(--primary))]"><option>Job description</option><option>Career center guide</option><option>Course notes</option><option>Personal research</option></select></label><label className="block text-[11px] font-bold uppercase tracking-[.1em] text-muted-foreground">Content<textarea value={content} onChange={(e) => setContent(e.target.value)} data-testid="textarea-resource-content" placeholder="Paste the text you want the agent to remember." className="mt-2 min-h-[150px] w-full resize-y rounded-xl border border-input bg-background p-3 text-[12px] leading-5 outline-none focus:border-[hsl(var(--primary))]" /></label><Button onClick={addResource} disabled={(!content.trim() && !resourceFile) || add.isPending || uploadingResource} testId="button-add-resource" >{add.isPending || uploadingResource ? <><Loader2 size={14} className="animate-spin" /> Indexing</> : <><Upload size={14} /> Index resource</>}</Button>{add.isSuccess && <p data-testid="status-resource-added" className="mt-3 flex items-center gap-1.5 text-[11px] text-[hsl(var(--primary))]"><Check size={13} /> Resource indexed and ready.</p>}</Card>
       <Card className="reveal reveal-delay-1" testId="card-ask-agent"><div className="mb-5 flex items-start justify-between"><div><h2 className="font-display text-lg font-bold tracking-[-.04em]">Ask a grounded question</h2><p className="mt-1 text-[11px] text-muted-foreground">The agent will cite the resources it used.</p></div><Search size={18} className="text-[hsl(var(--primary))]" /></div><div className="flex gap-2"><input value={question} onChange={(e) => setQuestion(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter' && question.trim()) ask.mutate({ data: { question } }, { onSuccess: setAnswer }); }} data-testid="input-career-question" placeholder="What should I prioritize for a product internship?" className="min-w-0 flex-1 rounded-xl border border-input bg-background px-3 py-2.5 text-[12px] outline-none focus:border-[hsl(var(--primary))]" /><Button onClick={() => ask.mutate({ data: { question } }, { onSuccess: setAnswer })} disabled={!question.trim() || ask.isPending} testId="button-ask-question">{ask.isPending ? <Loader2 size={15} className="animate-spin" /> : <Send size={15} />}</Button></div>{answer ? <div className="mt-6 space-y-5 border-t border-border pt-5" data-testid="card-career-answer"><div><p className="font-mono-ui text-[10px] uppercase tracking-[.13em] text-[hsl(var(--primary))]">Grounded answer</p><p className="mt-2 text-[14px] leading-7">{answer.answer}</p></div><div><p className="mb-2 font-mono-ui text-[10px] uppercase tracking-[.13em] text-muted-foreground">Sources</p><div className="flex flex-wrap gap-2">{answer.sources?.map((source: string, i: number) => <span key={i} className="flex items-center gap-1.5 rounded-md bg-muted px-2.5 py-1.5 text-[10px] font-semibold"><BookOpen size={11} className="text-[hsl(var(--primary))]" />{source}</span>)}</div></div><div className="flex flex-wrap gap-2 border-t border-border pt-4">{answer.agentTrace?.map((trace: string, i: number) => <span key={i} className="text-[10px] text-muted-foreground"><Check size={11} className="mr-1 inline text-[hsl(var(--primary))]" />{trace}</span>)}</div></div> : <div className="mt-6 rounded-xl bg-muted/45 p-4 text-[11px] leading-5 text-muted-foreground">Try asking how one of your target roles maps to the resources you have indexed.</div>}</Card></div>
     <Card className="reveal reveal-delay-2" testId="card-resource-list"><SectionHeading title="Your indexed shelf" meta="The references your agent can search." />{docsQuery.isLoading ? <LoadingBlock lines={4} /> : docsQuery.isError ? <QueryError retry={() => docsQuery.refetch()} /> : docsQuery.data?.length ? <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">{docsQuery.data.map((doc, i) => <div key={doc.id || i} data-testid={`resource-card-${doc.id || i}`} className="rounded-xl border border-border p-4"><div className="flex items-start justify-between gap-2"><span className="flex h-8 w-8 items-center justify-center rounded-lg bg-[hsl(var(--primary)/.08)] text-[hsl(var(--primary))]"><FileText size={14} /></span><span className="font-mono-ui text-[9px] uppercase text-muted-foreground">{doc.kind}</span></div><h3 className="mt-4 truncate text-[12px] font-bold">{doc.filename}</h3><p className="mt-2 line-clamp-2 text-[11px] leading-5 text-muted-foreground">{doc.excerpt}</p><p className="mt-4 font-mono-ui text-[9px] text-muted-foreground">{doc.chunks} chunks · added {formatDate(doc.createdAt)}</p></div>)}</div> : <EmptyState icon={FolderOpen} title="Your shelf is waiting" description="Start with a job description or a career center guide. Your agent gets more useful as context accumulates." />}</Card>
   </div>;
@@ -346,7 +468,7 @@ function splitList(value: string) {
 
 function Router() {
   const [location] = useLocation();
-  return <ErrorBoundary resetKey={location}><AppShell><Switch><Route path="/" component={Home} /><Route path="/resume" component={ResumePage} /><Route path="/career" component={CareerPage} /><Route path="/interview" component={InterviewPage} /><Route path="/knowledge" component={KnowledgePage} /><Route path="/profile" component={ProfilePage} /><Route component={NotFound} /></Switch></AppShell></ErrorBoundary>;
+  return <ErrorBoundary resetKey={location}><AppShell><Switch><Route path="/" component={Home} /><Route path="/resume" component={ResumePage} /><Route path="/recruiting" component={RecruitmentPage} /><Route path="/career" component={CareerPage} /><Route path="/interview" component={InterviewPage} /><Route path="/knowledge" component={KnowledgePage} /><Route path="/profile" component={ProfilePage} /><Route component={NotFound} /></Switch></AppShell></ErrorBoundary>;
 }
 
 function App() {
