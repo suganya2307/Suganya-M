@@ -1,0 +1,1 @@
+- [Agentic career AI fallback](agentic-career-ai.md) — keep live LLM refinement additive so the internship demo stays functional without provider access.

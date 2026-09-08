@@ -1,0 +1,28 @@
+kind = "web"
+previewPath = "/"
+title = "AI Resume & Career Assistant"
+description = "A demo-ready agentic career workspace for students: analyze resumes, remember goals, ground answers in uploaded resources, and generate personalized resume, skill, and interview guidance."
+version = "1.0.0"
+id = "artifacts/career-assistant"
+router = "path"
+
+[[services]]
+name = "web"
+paths = [ "/" ]
+localPort = 23503
+
+[services.development]
+run = "pnpm --filter @workspace/career-assistant run dev"
+
+[services.production]
+build = [ "pnpm", "--filter", "@workspace/career-assistant", "run", "build" ]
+serve = "static"
+publicDir = "artifacts/career-assistant/dist/public"
+
+[[services.production.rewrites]]
+from = "/*"
+to = "/index.html"
+
+[services.env]
+PORT = "23503"
+BASE_PATH = "/"

@@ -1,0 +1,434 @@
+openapi: 3.1.0
+info:
+  # Do not change the title, if the title changes, the import paths will be broken
+  title: Api
+  version: 0.1.0
+  description: Agentic AI career assistant API
+servers:
+  - url: /api
+    description: Base API path
+tags:
+  - name: health
+    description: Health operations
+  - name: career
+    description: Resume, career, memory, RAG, and tool-calling operations
+paths:
+  /healthz:
+    get:
+      operationId: healthCheck
+      tags: [health]
+      summary: Health check
+      responses:
+        "200":
+          description: Healthy
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HealthStatus"
+  /career/profile:
+    get:
+      operationId: getCareerProfile
+      tags: [career]
+      summary: Get the remembered student profile
+      responses:
+        "200":
+          description: Student profile
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CareerProfile"
+    put:
+      operationId: updateCareerProfile
+      tags: [career]
+      summary: Update the remembered student profile
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CareerProfileInput"
+      responses:
+        "200":
+          description: Updated profile
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CareerProfile"
+  /career/dashboard:
+    get:
+      operationId: getCareerDashboard
+      tags: [career]
+      summary: Get the career dashboard summary
+      responses:
+        "200":
+          description: Dashboard summary
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CareerDashboard"
+  /career/resume/analyze:
+    post:
+      operationId: analyzeResume
+      tags: [career]
+      summary: Analyze resume text with the career agent
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ResumeAnalysisInput"
+      responses:
+        "200":
+          description: Resume analysis
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ResumeAnalysis"
+  /career/documents:
+    get:
+      operationId: listCareerDocuments
+      tags: [career]
+      summary: List indexed career resources
+      responses:
+        "200":
+          description: Indexed resources
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/CareerDocument"
+    post:
+      operationId: addCareerDocument
+      tags: [career]
+      summary: Add a resource to the career knowledge base
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CareerDocumentInput"
+      responses:
+        "201":
+          description: Indexed resource
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CareerDocument"
+  /career/chat:
+    post:
+      operationId: askCareerQuestion
+      tags: [career]
+      summary: Ask a grounded career question
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CareerQuestionInput"
+      responses:
+        "200":
+          description: Grounded career answer
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CareerAnswer"
+  /career/tools/resume:
+    post:
+      operationId: generateImprovedResume
+      tags: [career]
+      summary: Generate an improved resume draft
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ResumeToolInput"
+      responses:
+        "200":
+          description: Improved resume draft
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ResumeToolOutput"
+  /career/tools/skills:
+    post:
+      operationId: generateSkillPlan
+      tags: [career]
+      summary: Generate a personalized skill recommendation plan
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SkillToolInput"
+      responses:
+        "200":
+          description: Skill plan
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SkillToolOutput"
+  /career/tools/interview:
+    post:
+      operationId: generateInterviewPrep
+      tags: [career]
+      summary: Generate interview questions and coaching
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/InterviewToolInput"
+      responses:
+        "200":
+          description: Interview preparation
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/InterviewToolOutput"
+  /career/activity:
+    get:
+      operationId: listCareerActivity
+      tags: [career]
+      summary: List recent agent activity
+      responses:
+        "200":
+          description: Activity feed
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/CareerActivity"
+components:
+  schemas:
+    HealthStatus:
+      type: object
+      properties:
+        status:
+          type: string
+      required: [status]
+    CareerProfile:
+      type: object
+      properties:
+        id: { type: integer }
+        name: { type: string }
+        headline: { type: string }
+        education: { type: string }
+        skills:
+          type: array
+          items: { type: string }
+        interests:
+          type: array
+          items: { type: string }
+        goals:
+          type: array
+          items: { type: string }
+        targetRoles:
+          type: array
+          items: { type: string }
+        updatedAt: { type: string }
+      required: [id, name, headline, education, skills, interests, goals, targetRoles, updatedAt]
+    CareerProfileInput:
+      type: object
+      properties:
+        name: { type: string }
+        headline: { type: string }
+        education: { type: string }
+        skills:
+          type: array
+          items: { type: string }
+        interests:
+          type: array
+          items: { type: string }
+        goals:
+          type: array
+          items: { type: string }
+        targetRoles:
+          type: array
+          items: { type: string }
+      required: [name, headline, education, skills, interests, goals, targetRoles]
+    CareerDashboard:
+      type: object
+      properties:
+        profile:
+          $ref: "#/components/schemas/CareerProfile"
+        resumeScore: { type: integer }
+        skillCoverage: { type: integer }
+        indexedDocuments: { type: integer }
+        interviewReadiness: { type: integer }
+        topRoles:
+          type: array
+          items:
+            $ref: "#/components/schemas/CareerRole"
+        skillGaps:
+          type: array
+          items:
+            $ref: "#/components/schemas/SkillGap"
+        recentActivity:
+          type: array
+          items:
+            $ref: "#/components/schemas/CareerActivity"
+      required: [profile, resumeScore, skillCoverage, indexedDocuments, interviewReadiness, topRoles, skillGaps, recentActivity]
+    ResumeAnalysisInput:
+      type: object
+      properties:
+        filename: { type: string }
+        resumeText: { type: string }
+        targetRole: { type: string }
+      required: [filename, resumeText]
+    ResumeAnalysis:
+      type: object
+      properties:
+        id: { type: integer }
+        filename: { type: string }
+        score: { type: integer }
+        summary: { type: string }
+        strengths:
+          type: array
+          items: { type: string }
+        improvements:
+          type: array
+          items: { type: string }
+        missingSkills:
+          type: array
+          items:
+            $ref: "#/components/schemas/SkillGap"
+        roleMatches:
+          type: array
+          items:
+            $ref: "#/components/schemas/CareerRole"
+        agentTrace:
+          type: array
+          items: { type: string }
+        createdAt: { type: string }
+      required: [id, filename, score, summary, strengths, improvements, missingSkills, roleMatches, agentTrace, createdAt]
+    CareerRole:
+      type: object
+      properties:
+        title: { type: string }
+        fit: { type: integer }
+        reason: { type: string }
+        nextStep: { type: string }
+      required: [title, fit, reason, nextStep]
+    SkillGap:
+      type: object
+      properties:
+        skill: { type: string }
+        priority: { type: string }
+        rationale: { type: string }
+        action: { type: string }
+      required: [skill, priority, rationale, action]
+    CareerDocumentInput:
+      type: object
+      properties:
+        filename: { type: string }
+        content: { type: string }
+        kind: { type: string }
+      required: [filename, content, kind]
+    CareerDocument:
+      type: object
+      properties:
+        id: { type: integer }
+        filename: { type: string }
+        kind: { type: string }
+        excerpt: { type: string }
+        chunks: { type: integer }
+        createdAt: { type: string }
+      required: [id, filename, kind, excerpt, chunks, createdAt]
+    CareerQuestionInput:
+      type: object
+      properties:
+        question: { type: string }
+      required: [question]
+    CareerAnswer:
+      type: object
+      properties:
+        question: { type: string }
+        answer: { type: string }
+        sources:
+          type: array
+          items: { type: string }
+        agentTrace:
+          type: array
+          items: { type: string }
+      required: [question, answer, sources, agentTrace]
+    ResumeToolInput:
+      type: object
+      properties:
+        targetRole: { type: string }
+        focus: { type: string }
+      required: [targetRole, focus]
+    ResumeToolOutput:
+      type: object
+      properties:
+        title: { type: string }
+        content: { type: string }
+        highlights:
+          type: array
+          items: { type: string }
+        toolTrace:
+          type: array
+          items: { type: string }
+      required: [title, content, highlights, toolTrace]
+    SkillToolInput:
+      type: object
+      properties:
+        targetRole: { type: string }
+        timeframe: { type: string }
+      required: [targetRole, timeframe]
+    SkillToolOutput:
+      type: object
+      properties:
+        targetRole: { type: string }
+        plan:
+          type: array
+          items:
+            $ref: "#/components/schemas/SkillPlanItem"
+        toolTrace:
+          type: array
+          items: { type: string }
+      required: [targetRole, plan, toolTrace]
+    SkillPlanItem:
+      type: object
+      properties:
+        week: { type: string }
+        skill: { type: string }
+        why: { type: string }
+        project: { type: string }
+      required: [week, skill, why, project]
+    InterviewToolInput:
+      type: object
+      properties:
+        targetRole: { type: string }
+        difficulty: { type: string }
+      required: [targetRole, difficulty]
+    InterviewToolOutput:
+      type: object
+      properties:
+        targetRole: { type: string }
+        questions:
+          type: array
+          items:
+            $ref: "#/components/schemas/InterviewQuestion"
+        toolTrace:
+          type: array
+          items: { type: string }
+      required: [targetRole, questions, toolTrace]
+    InterviewQuestion:
+      type: object
+      properties:
+        category: { type: string }
+        question: { type: string }
+        coaching: { type: string }
+      required: [category, question, coaching]
+    CareerActivity:
+      type: object
+      properties:
+        id: { type: integer }
+        type: { type: string }
+        title: { type: string }
+        detail: { type: string }
+        createdAt: { type: string }
+      required: [id, type, title, detail, createdAt]
