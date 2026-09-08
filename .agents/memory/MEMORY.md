@@ -1,1 +1,2 @@
 - [Agentic career AI fallback](agentic-career-ai.md) — keep live LLM refinement additive so the internship demo stays functional without provider access.
+- [Python API workflow path](python-api-workflow.md) — managed API commands start in the artifact directory, so root-level Python modules need an explicit workspace-root launch.
